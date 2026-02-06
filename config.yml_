@@ -1,0 +1,11 @@
+include:
+  - .nojekyll
+  - /models/
+
+plugins:
+  - jekyll-sitemap
+
+# إضافة MIME types للملفات الثلاثية الأبعاد
+mime_types:
+  glb: model/gltf-binary
+  gltf: model/gltf+json
