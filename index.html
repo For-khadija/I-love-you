@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💐 هدية خاصة</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: #000;
+            color: #fff;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        #scene-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        /* الرسالة - أسفل الشاشة في المنتصف */
+        #message {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 18px 30px;
+            border-radius: 25px;
+            border: 2px solid rgba(255, 102, 153, 0.7);
+            max-width: 85%;
+            min-width: 300px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            animation: fadeInUp 2s ease-out;
+        }
+        
+        .message-text {
+            color: #ffddee;
+            font-size: 1.4rem;
+            line-height: 1.6;
+            text-shadow: 0 0 15px rgba(255, 221, 238, 0.8);
+            font-weight: 500;
+            word-wrap: break-word;
+            direction: rtl;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+        
+        /* تحسينات للهاتف */
+        @media (max-width: 768px) {
+            #message {
+                bottom: 25px;
+                padding: 15px 25px;
+                max-width: 90%;
+                min-width: 280px;
+            }
+            
+            .message-text {
+                font-size: 1.2rem;
+                line-height: 1.5;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #message {
+                bottom: 20px;
+                padding: 12px 20px;
+                border-radius: 20px;
+                border-width: 1.5px;
+            }
+            
+            .message-text {
+                font-size: 1.1rem;
+                line-height: 1.4;
+            }
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        /* إخفاء كل عناصر التحكم والإعدادات */
+        .config-btn,
+        .config-panel,
+        .zoom-controls,
+        #waiting-screen {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- المشهد فقط والرسالة -->
+    <div id="container">
+        <div id="scene-container"></div>
+        
+        <!-- الرسالة -->
+        <div id="message">
+            <div class="message-text">توحشتك هههه سمحيلي مبعتلكش البارح</div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // إعدادات مبسطة
+        // ============================================
+        const CONFIG = {
+            // مسار ملف الوردة - غير هذا إذا رفعت الملف في مكان آخر
+            MODEL_URL: 'models/rose.glb',
+            
+            // إعدادات العرض
+            ROTATION_SPEED: 0.005,
+            MODEL_SCALE: 2.0,
+            
+            // إعدادات الكاميرا
+            CAMERA_POSITION: { x: 1.5, y: 1.8, z: 3.5 }
+        };
+        
+        // متغيرات المشهد
+        let scene, camera, renderer, controls, roseModel;
+        
+        // ============================================
+        // بدء التطبيق
+        // ============================================
+        function init() {
+            // إنشاء المشهد
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            
+            // إنشاء الكاميرا
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(
+                CONFIG.CAMERA_POSITION.x,
+                CONFIG.CAMERA_POSITION.y,
+                CONFIG.CAMERA_POSITION.z
+            );
+            camera.lookAt(0, 0, 0);
+            
+            // إنشاء العارض
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            
+            // إضافة العارض إلى الصفحة
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+            
+            // إضافة التحكم بالدوران (يمكن للمستخدم تدوير الوردة)
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = false;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+            
+            // إضافة الإضاءة
+            setupLighting();
+            
+            // تحميل الوردة
+            loadRoseModel();
+            
+            // التحكم بحجم النافذة
+            window.addEventListener('resize', onWindowResize);
+            
+            // بدء التصيير
+            animate();
+            
+            // التأكد من ظهور الرسالة
+            setTimeout(() => {
+                const message = document.getElementById('message');
+                if (message) {
+                    message.style.display = 'block';
+                    message.style.visibility = 'visible';
+                }
+            }, 100);
+        }
+        
+        // ============================================
+        // إعداد الإضاءة
+        // ============================================
+        function setupLighting() {
+            // إضاءة خلفية
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            // إضاءة رئيسية
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+            mainLight.position.set(3, 5, 4);
+            mainLight.castShadow = true;
+            scene.add(mainLight);
+            
+            // إضاءة ملونة للوردة
+            const roseLight = new THREE.PointLight(0xff6699, 0.8, 15);
+            roseLight.position.set(0, 2, 3);
+            scene.add(roseLight);
+        }
+        
+        // ============================================
+        // تحميل الوردة
+        // ============================================
+        function loadRoseModel() {
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load(
+                CONFIG.MODEL_URL,
+                // عند النجاح
+                function(gltf) {
+                    roseModel = gltf.scene;
+                    
+                    // حساب الحجم المناسب
+                    const box = new THREE.Box3().setFromObject(roseModel);
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = CONFIG.MODEL_SCALE / maxDim;
+                    
+                    // تطبيق الحجم
+                    roseModel.scale.setScalar(scale);
+                    
+                    // تحسين المواد
+                    roseModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            
+                            if (child.material) {
+                                child.material.needsUpdate = true;
+                                // تحسين الألوان قليلاً
+                                if (child.material.color) {
+                                    child.material.color.multiplyScalar(1.3);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // إضافة الوردة إلى المشهد
+                    scene.add(roseModel);
+                    
+                    console.log('✅ تم تحميل الوردة بنجاح');
+                },
+                // أثناء التحميل
+                undefined,
+                // عند الخطأ
+                function(error) {
+                    console.error('❌ خطأ في تحميل الوردة:', error);
+                    
+                    // إنشاء وردة بسيطة بديلة
+                    createSimpleRose();
+                    
+                    // إظهار رسالة خطأ صغيرة في الكونسول فقط
+                    console.log('تم إنشاء وردة افتراضية بديلة');
+                }
+            );
+        }
+        
+        // ============================================
+        // وردة افتراضية بسيطة (إذا فشل التحميل)
+        // ============================================
+        function createSimpleRose() {
+            const roseGroup = new THREE.Group();
+            
+            // قلب الوردة
+            const heartGeometry = new THREE.SphereGeometry(0.25, 24, 24);
+            const heartMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xffcc00,
+                shininess: 100,
+                emissive: 0xffcc00,
+                emissiveIntensity: 0.3
+            });
+            const heart = new THREE.Mesh(heartGeometry, heartMaterial);
+            roseGroup.add(heart);
+            
+            // البتلات
+            for (let i = 0; i < 12; i++) {
+                const petal = createSimplePetal();
+                const angle = (i / 12) * Math.PI * 2;
+                const radius = 0.8;
+                
+                petal.position.x = Math.cos(angle) * radius;
+                petal.position.y = Math.sin(angle) * radius * 0.6;
+                petal.rotation.z = angle;
+                
+                const scale = 0.7 + Math.random() * 0.4;
+                petal.scale.set(scale, scale, scale);
+                
+                roseGroup.add(petal);
+            }
+            
+            // الساق
+            const stemGeometry = new THREE.CylinderGeometry(0.04, 0.06, 2.2, 12);
+            const stemMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x228b22,
+                shininess: 30
+            });
+            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+            stem.position.y = -1.2;
+            roseGroup.add(stem);
+            
+            roseModel = roseGroup;
+            scene.add(roseModel);
+        }
+        
+        function createSimplePetal() {
+            const geometry = new THREE.ConeGeometry(0.4, 0.8, 8);
+            geometry.rotateX(Math.PI / 2);
+            
+            const material = new THREE.MeshPhongMaterial({
+                color: 0xff3366,
+                shininess: 60,
+                side: THREE.DoubleSide
+            });
+            
+            return new THREE.Mesh(geometry, material);
+        }
+        
+        // ============================================
+        // التحكم بحجم النافذة
+        // ============================================
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // ============================================
+        // التصيير
+        // ============================================
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // تدوير الوردة بلطف
+            if (roseModel) {
+                roseModel.rotation.y += CONFIG.ROTATION_SPEED;
+            }
+            
+            // تحديث عناصر التحكم
+            controls.update();
+            
+            // تصيير المشهد
+            renderer.render(scene, camera);
+        }
+        
+        // ============================================
+        // بدء تشغيل الموقع عند تحميل الصفحة
+        // ============================================
+        window.addEventListener('DOMContentLoaded', init);
+        
+        // منع التمرير على الهواتف
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.tagName === 'CANVAS') {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
